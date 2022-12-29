@@ -1,0 +1,307 @@
+#!/bin/bash
+Creer_recur ()
+{
+    # --- Création récursive de dossier d'après un nom ---
+    if [[ ! -d $1 ]]; then
+       
+       mkdir "$1"
+       
+            fi
+            
+
+}
+Creer_recur1 ()
+{
+   
+    if [[ ! -d $1 ]]; then
+
+      mkdir -p $1
+   return 2
+     else 
+        zenity --warning --text "la liste est deja existe" --width=200
+    fi
+    
+}
+#until [[ -d "$(dirname $conkytodo)" ]]; do
+#    mkdir -p "$dossier" && dossier="$(dirname $conkytodo)" ||    dossier="$(dirname $dossier)"
+#done;
+
+tododir=~/.todosh/
+Creer_recur $tododir
+cd $tododir
+
+ListeTaches () { ls . | grep -E "^([1-9][0-9]|[1-9])\.todo" | sort -n |  xargs cat | sed 's/todo=//'; }
+Listelists () { ls $tododir | sort   ;}
+detruire()
+{
+    rm -fv $1 || echo "Retour";
+    continue
+}
+
+#Demander si l'on veut ajouter ou supprimer une tache
+action_ajout="1 Ajouter une tache"
+action_suppr="2 Supprimer une tache"
+action_affiche="3 Afficher les taches"
+action_modif="4 Modifier une tache"
+action_deplace="5 Déplacer une tache"
+action_ajoutlist=" ajouter list"
+action_supprlist=" Supprimer une liste"
+action_affichelists=" Afficher les listes"
+action_accederlist="acceder au listes"
+action_Renomerliste=" Renommer une liste"
+action_Deplacertacheentrelist="deplacer la tache d une liste"
+action_todo="1-todo"
+action_calculate="2-calculat"
+
+   ChoixAction()
+{
+   zenity --list --title "Bienvenue dans votre liste $1" --text "choisie la tache sur votre liste  ?" --column "Ajout-Suppresion" "$action_ajout" "$action_suppr" "$action_affiche" "$action_modif" "$action_deplace"    --height=500 --width=300 || return 2
+}
+
+   ChoixActionlist()
+{
+    zenity --entry --title \ "actions sur les listes" --entry-text="choisir l option"    "$action_ajoutlist" "$action_supprlist" "$action_affichelists" "$action_accederlist" "$action_Renomerliste" "$action_Deplacertacheentrelist"   || return 2
+}
+   Choixpro()
+{
+    zenity --entry --title \ "choix de programme" --text "TODO ou bien CALCULATRICE ?  ?"  --entry-text="choisir le programme souhaite"    "$action_todo" "$action_calculate"    || return 2
+}
+while true ; do
+actionprogramme=`Choixpro`
+   [[ ! $actionprogramme ]] && zenity --info --text "         \"AU REVOIR \"         " --width=200 && exit 2
+    if [ "$actionprogramme" = "$action_todo" ]; then
+while true; do
+  actionlist=`ChoixActionlist`
+    [[ ! $actionlist ]] && zenity --info --text "         \"vous avez quitter |todo| \"         " --width=200 && continue 2
+  if [ "$actionlist" = "$action_ajoutlist" ]; then 
+    tache=`zenity --entry --title "Objet de la tache." --text "Quelle est le nom de votre liste?" --entry-text "entrer le nom de votre liste ici" --width=600` || continue 
+     rep_list="$tache"
+    Creer_recur1 $rep_list  
+    if [ $? -eq 2 ];then
+   zenity --info --text "votre liste $tache a ete bien ajoutee" --width=200
+   fi
+     
+   elif [ "$actionlist" = "$action_affichelists" ]; then
+     Listelists | zenity --list --title="Affichage" --column="Affichage Complet" --height=550 --width=400  
+      
+   elif [ "$actionlist" = "$action_supprlist" ]; then 
+   choix=` Listelists | zenity --list --title="Affichage"  --column="Affichage Complet" --height=550 --width=400 `
+       rm -rf $choix
+       if [ $? -eq "0" ]; then 
+       zenity --info --text "votre liste $tache a ete bien supprimer" --width=200
+       fi
+              
+   elif [ "$actionlist" = "$action_accederlist" ]; then 
+     choix=`Listelists | zenity --list --title="chosir la liste" --column="Affichage des listes" --height=550 --width=400`    
+  while true;do
+    action=`ChoixAction $choix`
+    [[ ! $action ]] && zenity --info --text "votre avez sortie de la liste \"$choix\" " --width=200 && continue 2
+      cd "$tododir"/"$choix"   
+    nbtaches=`ls . | grep -E "^([1-9][0-9]|[1-9])\.todo" | wc -l`
+    
+    if [ "$action" = "$action_ajout" ]; then 
+        ## Ajouter une tache
+        #On demande quelle priorite on veut attribuer a la tache
+        max_numtache=$(($nbtaches+1));
+        echo "todo=$max_numtache/ " > $max_numtache.todo
+        numtache=`ListeTaches | zenity --list --title="Ajout" --column="Quelle priorité voulez-vous donner à la tâche ?" --height=400 --width=300 | grep -oE "^([1-9]?[0-9])"` || detruire $max_numtache.todo
+        
+        if [[ $numtache -eq $max_numtache ]]; then
+            # $max_numtache est le maximum pour garder une cohérence dans les fichiers.
+            numtache=$max_numtache ;
+            tache=`zenity --entry --title "Objet de la tache." --text "Quelle est cette tache ?" --entry-text "Tache n°$numtache" --width=600` || detruire $max_numtache.todo
+            echo -e "todo=$numtache/ $tache" > $numtache.todo
+            
+        else
+            # On demande la tache avant pour laisser une chance d'annuler avant de tout modifier.
+            tache=`zenity --entry --title "Objet de la tache." --text "Quelle est cette tache ?" --entry-text "Tache n°$numtache"` || continue
+        
+            # On décale tous les fichiers supérieurs à $numtache (y compris $numtache puisqu'on veut prendre sa place)
+            for i in `seq $nbtaches -1 $numtache`
+            do
+                j=$(($i+1))
+                mv -f $i.todo $j.todo
+                sed -i "s/$i/$j/" $j.todo
+            done
+        
+            # On remplit avec la tache.
+            echo "todo=$numtache/ $tache" > $numtache.todo
+        fi
+         zenity --info --text "votre tache: \"$tache\" a ete bien ajoutee" --width=200
+
+    elif [ "$action" = "$action_suppr" ]; then
+        # Supprimer une tache
+        numtache=`ListeTaches | zenity --list --title="Suppression" --column="Quelle tache supprimer ?" --height=400 --width=300 | grep -oE "^([1-9]?[0-9])"` || continue
+        rm -f $numtache.todo
+        avantder=$(($nbtaches-1))
+        # La suite est vide si $numtache est le dernier > $avantder.
+        # Elle contient un element s'il est $avantder.
+        for i in `seq $numtache $avantder`
+        do
+            j=$(($i+1))
+            mv $j.todo $i.todo
+            sed -i "s/$j/$i/" $i.todo
+        done
+ zenity --info --text "votre tache: \"$numtache\" a ete bien supprime" --width=300
+    elif [ "$action" = "$action_affiche" ]; then
+        ListeTaches | zenity --list --title="Affichage" --column="Affichage Complet" --height=550 --width=400
+
+    elif [ "$action" = "$action_modif" ]; then
+        #Modifier une tache.
+        numtache=`ListeTaches | zenity --list --title="Modification" --column="Quelle entrée modifier ?" --height=400 --width=300 | grep -oE "^([1-9]?[0-9])"` || continue
+        anctache=`cat $numtache.todo | sed -E 's/todo=..//'`
+        nouvtache=`zenity --entry --title "Objet de la tache." --text "Quelle est cette tache ?" --entry-text "$anctache" --width=600` || continue
+        echo "todo=$numtache/ $nouvtache" > $numtache.todo
+      zenity --info --text "votre tache: \"$anctache\" a ete bien modifie en \"$nouvtache\"" --width=400
+   elif [ "$action" = "$action_deplace" ]; then
+
+        numorig=`ListeTaches | zenity --list --title="Déplacement" --column="Origine" --height=400 --width=300 | grep -oE "^([1-9]?[0-9])"` || continue
+        numcible=`ListeTaches | zenity --list --title="Déplacement" --column="Cible" --height=400 --width=300 | grep -oE "^([1-9]?[0-9])"` || continue
+        
+        if [[ $numorig == $numcible ]]; then
+            continue;
+        elif [[ $numorig -lt $numcible ]]; then
+            mv $numorig.todo tmp.todo;
+            avantcible=$(($numcible-1));
+            for i in `seq $numorig $avantcible`; do
+                j=$(($i+1))
+                mv $j.todo $i.todo
+                sed -i "s/$j/$i/" $i.todo
+            done
+            mv tmp.todo $numcible.todo;
+            sed -i "s/$numorig/$numcible/" $numcible.todo
+        else
+            mv $numorig.todo tmp.todo;
+            avantorig=$(($numorig-1));
+            for i in `seq $avantorig -1 $numcible`; do
+               j=$(($i+1))
+                mv $i.todo $j.todo
+                sed -i "s/$i/$j/" $j.todo
+            done
+            mv tmp.todo $numcible.todo
+            sed -i "s/$numorig/$numcible/" $numcible.todo
+        fi
+     zenity --info --text "votre tache numero \"$numorig\" a ete bien deplace vers la position \"$numcible\"" --width=400
+    fi
+done 
+elif [ "$actionlist" = "$action_Renomerliste" ]; then
+ ancliste=`Listelists | zenity --list --title="chosir la liste a renomme" --column="Affichage des listes" --height=550 --width=400`
+ nouvliste=`zenity --entry --title "Renommer la liste $choix" --text "Quelle est le nouveau nom ?" --entry`
+
+   if [ -d "$nouvliste"  ]; then
+      zenity --warning --text "votre nouveau nom: \"$nouvliste\" existe deja" --width=200  
+  
+   else
+   mv $ancliste $nouvliste
+         zenity --info --text "votre liste: \"$ancliste\" a ete renomme en \"$nouvliste\"" --width=200
+ fi  
+elif [ "$actionlist" = "$action_Deplacertacheentrelist" ]; then
+
+origine=`Listelists | zenity --list --title="liste origine" --column="choisir la liste " --height=550 --width=400`
+cd $origine
+tacheorg=`ListeTaches | zenity --list --title="tache a deplacer" --column="choisir la tache a deplacer" --height=550 --width=400` || continue
+
+num=`grep -oE "^([1-9]?[0-9])" <<< "$tacheorg"`
+tachorgn=`sed -E 's/([1-9]?[0-9])\///' <<< "$tacheorg"`
+
+cd $tododir
+cible=`Listelists | zenity --list --title="liste cible" --column="choisir la liste " --height=550 --width=400`|| continue
+
+cd $cible
+nbtaches=`ls . | grep -E "^([1-9][0-9]|[1-9])\.todo" | wc -l`
+max_numtache=$(($nbtaches+1));
+        echo "todo=$max_numtache/ " > $max_numtache.todo
+        numtache=`ListeTaches | zenity --list --title="Ajout" --column="Quelle priorité voulez-vous donner à la tâche ?" --height=400 --width=300 | grep -oE "^([1-9]?[0-9])"` || detruire $max_numtache.todo
+        
+        if [[ $numtache -eq $max_numtache ]]; then
+            # $max_numtache est le maximum pour garder une cohérence dans les fichiers.
+            numtache=$max_numtache ;
+            echo -e "todo=$tacheorg" > $numtache.todo
+            
+        else
+            # On demande la tache avant pour laisser une chance d'annuler avant de tout modifier.
+ 
+            # On décale tous les fichiers supérieurs à $numtache (y compris $numtache puisqu'on veut prendre sa place)
+            for i in `seq $nbtaches -1 $numtache`
+            do
+                j=$(($i+1))
+                mv -f $i.todo $j.todo
+                sed -i "s/$i/$j/" $j.todo
+            done
+        
+            # On remplit avec la tache.
+            echo "todo=$tacheorg" > $numtache.todo
+        fi
+        cd "$tododir"/"$origine"
+        rm -f $num.todo
+         zenity --info --text "votre tache: \"$tachorgn\" a ete bien deplace" --width=200
+
+ fi
+done
+elif [ "$actionprogramme" = "$action_calculate" ]; then
+# Take user Input
+
+
+# Input type of operation
+
+addition="1. Addition"
+soustraction="2. Subtraction"
+multiplication="3. Multiplication"
+division="4. Division"
+while true ; do
+ chhh=`zenity --list --title "les operations " --text "choisie l operation   ?" --column "" "$addition" "$soustraction" "$multiplication" "$division"   --height=500 --width=300` 
+  [[ ! $chhh ]] && zenity --info --text "         \"vous avez quitter |calculat| \"         " --width=200 && continue 2
+ 
+
+ if [ "$chhh" = "$addition" ] ; then 
+ v=0
+ b=0
+ a=0
+ while [ $v -eq 0 ] ; do
+ a=`zenity --entry --title "entrer le numero " --text "" --entry-text "votre numero ici"` || v=1
+b=$(( $a+$b ))
+ 
+ done 
+
+zenity --info --text "  votre resultat est : $b    " --width=200 
+
+elif [ "$chhh" = "$soustraction" ] ; then 
+  v=0
+ b=0
+ a=0
+ while [ $v -eq 0 ] ; do
+ a=`zenity --entry --title "entrer le numero " --text "" --entry-text "votre numero ici"` || v=1
+b=$(( $a-$b ))
+ 
+ done 
+
+zenity --info --text "  votre resultat est : $b    " --width=200 
+
+elif [ "$chhh" = "$multiplication" ] ; then 
+a=`zenity --entry --title "entrer le premier  numero " --text "" --entry-text "votre numero ici" --width=400` 
+ 
+b=`zenity --entry --title "entrer le deuxieme numero " --text "" --entry-text "votre numero ici" --width=400`  
+
+
+ c=$( expr $a \* $b )
+ 
+
+
+zenity --info --text "  votre resultat est : $c  " --width=200
+elif [ "$chhh" = "$division" ] ; then 
+ 
+
+ a=`zenity --entry --title "entrer le premier  numero " --text "" --entry-text "votre numero ici" --width=400` 
+ 
+b=`zenity --entry --title "entrer le deuxieme numero " --text "" --entry-text "votre numero ici" --width=400` 
+ 
+
+ c=$( expr $a / $b ) 
+
+zenity --info --text "  votre resultat est : $c  " --width=200
+fi
+done
+
+fi
+
+done
